@@ -1,0 +1,45 @@
+generator client { provider = "prisma-client-js" }
+datasource db { provider = "postgresql" url = env("DATABASE_URL") }
+
+enum Visibility { PUBLIC FOLLOWERS PRIVATE }
+enum ReportStatus { OPEN REVIEWING ACTIONED DISMISSED }
+
+model User {
+ id String @id @default(cuid())
+ handle String @unique
+ displayName String
+ bio String? @db.VarChar(280)
+ createdAt DateTime @default(now())
+ posts Post[]
+ following Follow[] @relation("following")
+ followers Follow[] @relation("followers")
+}
+model Post {
+ id String @id @default(cuid())
+ authorId String
+ author User @relation(fields:[authorId],references:[id],onDelete:Cascade)
+ body String @db.VarChar(1000)
+ visibility Visibility @default(PUBLIC)
+ createdAt DateTime @default(now())
+ updatedAt DateTime @updatedAt
+ @@index([authorId,createdAt])
+ @@index([createdAt])
+}
+model Follow {
+ followerId String
+ followingId String
+ follower User @relation("following",fields:[followerId],references:[id],onDelete:Cascade)
+ following User @relation("followers",fields:[followingId],references:[id],onDelete:Cascade)
+ createdAt DateTime @default(now())
+ @@id([followerId,followingId])
+}
+model Report {
+ id String @id @default(cuid())
+ reporterId String
+ targetType String
+ targetId String
+ reason String
+ status ReportStatus @default(OPEN)
+ createdAt DateTime @default(now())
+ @@index([status,createdAt])
+}
