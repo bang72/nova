@@ -2,7 +2,7 @@ import { mkdirSync, readFileSync, renameSync, writeFileSync, appendFileSync, exi
 import { join } from "node:path";
 import { canonical, hashObject, merkleRoot, signPayload, verifyPayload } from "./crypto.mjs";
 import { cumulativeEmission, GENESIS_SUPPLY, HARD_CAP } from "./emission.mjs";
-import { isAccountId } from "./address.mjs";
+import { accountStateKey, decodeContinuumId, isPaymentAddress } from "./continuum-address.mjs";
 
 export const PROTOCOL = Object.freeze({ consensus: "C1", execution: "E1", crypto: "K1", storage: "S1", network: "N1" });
 export const BASE_FEE = 1_000n;
@@ -18,12 +18,14 @@ export class NovaChain {
     return this;
   }
   save() { const temp = `${this.statePath}.tmp`; writeFileSync(temp, encode(this.state)); renameSync(temp, this.statePath); }
-  account(id) { return this.state.accounts[id] ?? null; }
+  account(id) { try{const decoded=decodeContinuumId(id,{type:"account"});if(decoded.network!==this.state.addressNetwork)return null;return this.state.accounts[accountStateKey(id)]??null}catch{return null} }
+  validator(id,state=this.state){try{const decoded=decodeContinuumId(id,{type:"account"});if(decoded.network!==state.addressNetwork)return null;return state.validators[accountStateKey(id)]??null}catch{return null}}
   circulating() { return BigInt(this.state.supply.total); }
   validateTransaction(tx, state = this.state, validationTime = Math.floor(Date.now() / 1000)) {
     const { authorizationProof, ...payload } = tx;
     if (tx.chainDomain !== state.chainId) throw new Error("chain_domain mismatch");
-    const account = state.accounts[tx.accountId]; if (!account) throw new Error("unknown account");
+    if (decodeContinuumId(tx.accountId,{type:"account"}).network!==state.addressNetwork) throw new Error("sender address network mismatch");
+    const account = state.accounts[accountStateKey(tx.accountId)]; if (!account) throw new Error("unknown account");
     if (tx.authPolicyVersion !== account.policy.version) throw new Error("authorization policy version mismatch");
     if (tx.nonce !== account.nonce + 1) throw new Error(`invalid nonce: expected ${account.nonce + 1}`);
     if (!Number.isInteger(tx.expiry) || tx.expiry < validationTime) throw new Error("transaction expired");
@@ -33,9 +35,9 @@ export class NovaChain {
     const fee = BigInt(tx.feePolicy?.maxFee ?? "0"); if (fee < BASE_FEE) throw new Error("max fee below base fee");
     let required = BASE_FEE;
     for (const action of tx.actions) {
-      if (action.type === "transfer") { const amount = BigInt(action.amount); if (amount <= 0n) throw new Error("transfer amount must be positive"); if (!state.accounts[action.to]) throw new Error("recipient does not exist"); required += amount; }
+      if (action.type === "transfer") { const amount = BigInt(action.amount); if (amount <= 0n) throw new Error("transfer amount must be positive"); if (!isPaymentAddress(action.to)||decodeContinuumId(action.to,{type:"account"}).network!==state.addressNetwork||!state.accounts[accountStateKey(action.to)]) throw new Error("recipient does not exist or belongs to another network"); required += amount; }
       else if (action.type === "rotate_key") { if (!action.publicKey || action.suiteId !== "K-0001") throw new Error("invalid key rotation"); }
-      else if (action.type === "create_account") { if (!isAccountId(action.accountId) || state.accounts[action.accountId]) throw new Error("invalid or existing account id"); if (action.suiteId !== "K-0001" || !action.publicKey) throw new Error("invalid account authorization policy"); }
+      else if (action.type === "create_account") { if (!isPaymentAddress(action.accountId)||decodeContinuumId(action.accountId,{type:"account"}).network!==state.addressNetwork||state.accounts[accountStateKey(action.accountId)]) throw new Error("invalid, cross-network or existing account id"); if (action.suiteId !== "K-0001" || !action.publicKey) throw new Error("invalid account authorization policy"); }
       else throw new Error(`unsupported action: ${action.type}`);
     }
     if (BigInt(account.balance) < required) throw new Error("insufficient balance");
@@ -43,12 +45,12 @@ export class NovaChain {
   }
   submit(tx) { const checked = this.validateTransaction(tx); if (this.mempool.some((item) => item.id === checked.id)) throw new Error("duplicate transaction"); this.mempool.push({ id: checked.id, tx: clone(tx) }); return checked.id; }
   applyTransaction(tx, state, proposerId, validationTime) {
-    const checked = this.validateTransaction(tx, state, validationTime), sender = state.accounts[tx.accountId], events = [];
-    sender.balance = (BigInt(sender.balance) - checked.fee).toString(); state.accounts[proposerId].balance = (BigInt(state.accounts[proposerId].balance) + checked.fee).toString();
+    const checked = this.validateTransaction(tx, state, validationTime), sender = state.accounts[accountStateKey(tx.accountId)], events = [];
+    sender.balance = (BigInt(sender.balance) - checked.fee).toString(); const proposer=state.accounts[accountStateKey(proposerId)];proposer.balance = (BigInt(proposer.balance) + checked.fee).toString();
     for (const action of tx.actions) {
-      if (action.type === "transfer") { const amount = BigInt(action.amount); sender.balance = (BigInt(sender.balance) - amount).toString(); state.accounts[action.to].balance = (BigInt(state.accounts[action.to].balance) + amount).toString(); events.push({ type: "transfer", from: tx.accountId, to: action.to, amount: amount.toString() }); }
+      if (action.type === "transfer") { const amount = BigInt(action.amount),recipient=state.accounts[accountStateKey(action.to)]; sender.balance = (BigInt(sender.balance) - amount).toString(); recipient.balance = (BigInt(recipient.balance) + amount).toString(); events.push({ type: "transfer", from: tx.accountId, to: action.to, amount: amount.toString() }); }
       if (action.type === "rotate_key") { sender.policy = { suiteId: action.suiteId, publicKey: action.publicKey, version: sender.policy.version + 1 }; events.push({ type: "key_rotation", accountId: tx.accountId, policyVersion: sender.policy.version }); }
-      if (action.type === "create_account") { state.accounts[action.accountId] = { balance: "0", nonce: 0, policy: { suiteId: action.suiteId, publicKey: action.publicKey, version: 1 } }; events.push({ type: "account_created", accountId: action.accountId }); }
+      if (action.type === "create_account") { state.accounts[accountStateKey(action.accountId)] = { accountId:action.accountId,balance: "0", nonce: 0, policy: { suiteId: action.suiteId, publicKey: action.publicKey, version: 1 } }; events.push({ type: "account_created", accountId: action.accountId }); }
     }
     sender.nonce += 1; return { txId: checked.id, success: true, fee: checked.fee.toString(), events };
   }
@@ -57,7 +59,7 @@ export class NovaChain {
     const already = BigInt(state.supply.emitted), due = target - already; if (due <= 0n) return 0n;
     const destinations = this.genesis.emissionDestinations, shares = [[proposerId,50n],[destinations.contribution,25n],[destinations.archive,10n],[destinations.publicGoods,10n],[destinations.resilience,5n]];
     let distributed = 0n;
-    for (let i=0;i<shares.length;i++) { const amount = i === shares.length-1 ? due-distributed : due*shares[i][1]/100n; state.accounts[shares[i][0]].balance=(BigInt(state.accounts[shares[i][0]].balance)+amount).toString(); distributed+=amount; }
+    for (let i=0;i<shares.length;i++) { const amount = i === shares.length-1 ? due-distributed : due*shares[i][1]/100n,account=state.accounts[accountStateKey(shares[i][0])];account.balance=(BigInt(account.balance)+amount).toString(); distributed+=amount; }
     state.supply.emitted=(already+due).toString();state.supply.total=(BigInt(state.supply.total)+due).toString();if(BigInt(state.supply.total)>HARD_CAP)throw new Error("HARD_CAP invariant violated");return due;
   }
   assertSupply(state) { let held=0n;for(const account of Object.values(state.accounts))held+=BigInt(account.balance);for(const validator of Object.values(state.validators))held+=BigInt(validator.stake);if(held!==BigInt(state.supply.total))throw new Error(`supply accounting mismatch: held=${held} total=${state.supply.total}`);if(held>HARD_CAP)throw new Error("HARD_CAP invariant violated"); }
@@ -65,7 +67,7 @@ export class NovaChain {
     if (this.processing) throw new Error("block production already running"); this.processing=true;
     const before=clone(this.state);let txEntries=[];
     try {
-      if(timestamp < before.lastTimestamp)throw new Error("block timestamp moved backwards");if(timestamp>Math.floor(Date.now()/1000)+30)throw new Error("block timestamp exceeds allowed clock drift");
+      if(!this.validator(validatorKey.accountId,before))throw new Error("proposer is not an active validator");if(timestamp < before.lastTimestamp)throw new Error("block timestamp moved backwards");if(timestamp>Math.floor(Date.now()/1000)+30)throw new Error("block timestamp exceeds allowed clock drift");
       const working=clone(this.state),height=working.height+1;txEntries=this.mempool.splice(0,100);const receipts=[];
       for(const entry of txEntries){try{receipts.push(this.applyTransaction(entry.tx,working,validatorKey.accountId,timestamp))}catch(error){receipts.push({txId:entry.id,success:false,error:error.message,events:[]})}}
       const emission=this.applyEmission(working,timestamp,validatorKey.accountId);
@@ -78,9 +80,9 @@ export class NovaChain {
       this.verifyBlockCertificate(block,working);this.assertSupply(working);working.lastBlockHash=blockHash;this.state=working;appendFileSync(this.blocksPath,encode(block).replace(/\n/g,"")+"\n");this.save();return block;
     } catch(error){this.state=before;if(txEntries.length)this.mempool.unshift(...txEntries);throw error} finally{this.processing=false}
   }
-  verifyBlockCertificate(block,state=this.state){const vote={chainId:block.header.chainId,height:block.header.height,blockHash:block.hash,stateRoot:block.header.stateRoot};let signed=0n,total=0n;const seen=new Set();for(const validator of Object.values(state.validators))total+=BigInt(validator.stake);for(const proof of block.certificate.signatures){if(seen.has(proof.validatorId))continue;const validator=state.validators[proof.validatorId];if(validator&&verifyPayload(vote,proof.signature,validator.publicKey)){seen.add(proof.validatorId);signed+=BigInt(validator.stake)}}if(signed*3n<total*2n)throw new Error("validator certificate below 2/3 stake threshold");return true}
+  verifyBlockCertificate(block,state=this.state){const vote={chainId:block.header.chainId,height:block.header.height,blockHash:block.hash,stateRoot:block.header.stateRoot};let signed=0n,total=0n;const seen=new Set();for(const validator of Object.values(state.validators))total+=BigInt(validator.stake);for(const proof of block.certificate.signatures){let signerKey;try{signerKey=accountStateKey(proof.validatorId)}catch{continue}if(seen.has(signerKey))continue;const validator=this.validator(proof.validatorId,state);if(validator&&verifyPayload(vote,proof.signature,validator.publicKey)){seen.add(signerKey);signed+=BigInt(validator.stake)}}if(signed*3n<total*2n)throw new Error("validator certificate below 2/3 stake threshold");return true}
   buildBlockProposal(validatorKey,timestamp=Math.floor(Date.now()/1000)){
-    if(!this.state.validators[validatorKey.accountId])throw new Error("proposer is not an active validator");
+    if(!this.validator(validatorKey.accountId))throw new Error("proposer is not an active validator");
     if(timestamp<this.state.lastTimestamp)throw new Error("block timestamp moved backwards");
     if(timestamp>Math.floor(Date.now()/1000)+30)throw new Error("block timestamp exceeds allowed clock drift");
     const working=clone(this.state),height=working.height+1,txEntries=this.mempool.slice(0,100),receipts=[];
@@ -94,7 +96,7 @@ export class NovaChain {
     if(block.header.chainId!==this.state.chainId)throw new Error("block chain_id mismatch");
     if(block.header.height!==this.state.height+1)throw new Error("non-sequential block height");
     if(block.header.parentCommitment!==this.state.lastBlockHash)throw new Error("parent commitment mismatch");
-    if(!this.state.validators[block.header.proposerId])throw new Error("unknown block proposer");
+    if(!this.validator(block.header.proposerId))throw new Error("unknown block proposer");
     if(block.header.timestamp<this.state.lastTimestamp)throw new Error("block timestamp moved backwards");
     if(canonical(block.header.protocolVersion)!==canonical(PROTOCOL))throw new Error("unsupported protocol version");
     if(hashObject(block.header)!==block.hash)throw new Error("block hash mismatch");
@@ -112,7 +114,7 @@ export class NovaChain {
     this.assertSupply(working);working.lastBlockHash=block.hash;return working;
   }
   signBlockProposal(block,validatorKey){
-    if(!this.state.validators[validatorKey.accountId])throw new Error("signer is not an active validator");
+    if(!this.validator(validatorKey.accountId))throw new Error("signer is not an active validator");
     this.evaluateBlock(block,false);const vote={chainId:block.header.chainId,height:block.header.height,blockHash:block.hash,stateRoot:block.header.stateRoot};
     return{validatorId:validatorKey.accountId,suiteId:"K-0001",signature:signPayload(vote,validatorKey.privateKey)};
   }
@@ -126,12 +128,13 @@ export class NovaChain {
 export function createGenesis(dataDir, identities, options = {}) {
   mkdirSync(dataDir,{recursive:true});const chainId=options.chainId??`nova-devnet-${new Date().toISOString().slice(0,10).replaceAll("-","")}`,genesisTime=options.genesisTime??Math.floor(Date.now()/1000),allocations={ecosystem:4_000_000n,validator:2_000_000n,foundation:1_500_000n,users:1_000_000n,liquidity:1_000_000n,audits:500_000n};
   const accounts={},byLabel=Object.fromEntries(identities.map(item=>[item.label,item]));
-  for(const [label,nova] of Object.entries(allocations)){const key=byLabel[label];if(!key)throw new Error(`missing genesis identity: ${label}`);accounts[key.accountId]={balance:(label==="validator"?0n:nova*1_000_000n).toString(),nonce:0,policy:{suiteId:key.suiteId,publicKey:key.publicKey,version:1}}}
+  for(const [label,nova] of Object.entries(allocations)){const key=byLabel[label];if(!key)throw new Error(`missing genesis identity: ${label}`);accounts[accountStateKey(key.accountId)]={accountId:key.accountId,balance:(label==="validator"?0n:nova*1_000_000n).toString(),nonce:0,policy:{suiteId:key.suiteId,publicKey:key.publicKey,version:1}}}
   const validator=byLabel.validator,validatorIdentities=options.validatorIdentities??[validator];
   if(!validatorIdentities.length||!validatorIdentities.some(item=>item.accountId===validator.accountId))throw new Error("genesis validator set must include the validator allocation account");
   const validators={},bonded=2_000_000n*1_000_000n,baseStake=bonded/BigInt(validatorIdentities.length);let assigned=0n;
-  validatorIdentities.forEach((item,index)=>{if(!accounts[item.accountId])accounts[item.accountId]={balance:"0",nonce:0,policy:{suiteId:item.suiteId,publicKey:item.publicKey,version:1}};const stake=index===validatorIdentities.length-1?bonded-assigned:baseStake;validators[item.accountId]={stake:stake.toString(),publicKey:item.publicKey,status:"active"};assigned+=stake});
-  const state={chainId,genesisTime,secondsPerYear:options.secondsPerYear??31_557_600,epochSeconds:options.epochSeconds??10,height:0,lastTimestamp:genesisTime,lastBlockHash:"0".repeat(64),accounts,validators,supply:{genesis:GENESIS_SUPPLY.toString(),emitted:"0",total:GENESIS_SUPPLY.toString()}};
+  validatorIdentities.forEach((item,index)=>{const key=accountStateKey(item.accountId);if(!accounts[key])accounts[key]={accountId:item.accountId,balance:"0",nonce:0,policy:{suiteId:item.suiteId,publicKey:item.publicKey,version:1}};const stake=index===validatorIdentities.length-1?bonded-assigned:baseStake;validators[key]={accountId:item.accountId,stake:stake.toString(),publicKey:item.publicKey,status:"active"};assigned+=stake});
+  const addressNetworks=new Set(identities.map(item=>decodeContinuumId(item.accountId,{type:"account"}).network));if(addressNetworks.size!==1)throw new Error("genesis identities must use one NOVA address network");
+  const state={chainId,addressNetwork:[...addressNetworks][0],genesisTime,secondsPerYear:options.secondsPerYear??31_557_600,epochSeconds:options.epochSeconds??10,height:0,lastTimestamp:genesisTime,lastBlockHash:"0".repeat(64),accounts,validators,supply:{genesis:GENESIS_SUPPLY.toString(),emitted:"0",total:GENESIS_SUPPLY.toString()}};
   const genesis={chainId,genesisTime,protocolVersion:PROTOCOL,hardCap:HARD_CAP.toString(),allocations:Object.fromEntries(Object.entries(allocations).map(([k,v])=>[k,{accountId:byLabel[k].accountId,amount:(v*1_000_000n).toString()}])),emissionDestinations:{contribution:byLabel.users.accountId,archive:byLabel.audits.accountId,publicGoods:byLabel.ecosystem.accountId,resilience:byLabel.foundation.accountId},stateRoot:hashObject({accounts:state.accounts,validators:state.validators,supply:state.supply})};
   writeFileSync(join(dataDir,"genesis.json"),encode(genesis));writeFileSync(join(dataDir,"state.json"),encode(state));writeFileSync(join(dataDir,"blocks.jsonl"),"");return{genesis,state};
 }

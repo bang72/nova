@@ -1,6 +1,6 @@
-# NOVA L1 Mainnet Candidate R4
+# NOVA L1 Mainnet Candidate R5
 
-NOVA L1 R4 is a runnable, independent mainnet candidate derived from the
+NOVA L1 R5 is a runnable, independent mainnet candidate derived from the
 NOVA Millennium Social Protocol white paper. It is not an ERC-20 contract and
 does not depend on another chain.
 
@@ -18,7 +18,8 @@ Implemented:
 - deterministic certified-block import with full commitment re-execution;
 - four-process validator network with deterministic proposer rotation;
 - signed proposal voting, persistent double-sign protection and transaction broadcast;
-- native 256-bit Bech32m Account IDs with typo-resistant checksums;
+- native NOVA Continuum Address envelopes with 256-bit Account IDs;
+- 128-bit integrity checks, permanent Realm ID and crypto-suite versioning;
 - separate non-spendable prefixes for validators, transactions and blocks;
 - versioned protocol tuple (consensus/execution/crypto/storage/network);
 - fixed integer 1,000-year emission schedule totaling exactly 240,000,000 NOVA;
@@ -61,17 +62,20 @@ NOVA_RPC_URL=http://127.0.0.1:4181 node src/cli.mjs transfer \
   --to <NOVA_ACCOUNT_ID> --amount 12.5
 ```
 
-## Native ecosystem identifiers
+## NOVA Continuum identifiers
 
-- `nova1...` — mainnet payment account;
-- `tnova1...` — testnet payment account;
-- `novaval1...` — validator display identity, never a payment destination;
-- `novatx1...` — transaction display identity;
-- `novablk1...` — block display identity.
+- `nva-m-a1-...` — mainnet payment account;
+- `nva-t-a1-...` — testnet payment account;
+- `nva-m-v1-...` — validator identity, never a payment destination;
+- `nva-m-x1-...` — transaction identity;
+- `nva-m-b1-...` — block identity.
 
-Account IDs remain stable during authorization-key rotation. Wallets reject
-mixed case, corrupted checksums, invalid padding, wrong lengths and unsupported
-address versions.
+The ledger is keyed by the format-independent 256-bit Account ID, not by the
+printed address. A future NCA version can therefore render the same account
+again without moving its balance. Wallets reject mixed case, corrupted
+checksums, invalid grouping, wrong realms, cross-network forms, wrong lengths
+and unsupported versions. A single-symbol diagnostic can suggest a correction,
+but software never applies it automatically.
 
 ## Container
 
@@ -87,7 +91,7 @@ For the four-validator topology, initialize `.nova-network` first and run
 
 ## Security boundary
 
-R4 contains a real multi-process validator network, replicated state machine,
+R5 contains a real multi-process validator network, replicated state machine,
 quorum verification and persisted double-sign protection. Consensus messages
 are cryptographically signed, but transport is currently allowlisted HTTP and
 does not yet provide production mTLS or denial-of-service protection. The

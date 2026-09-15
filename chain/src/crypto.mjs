@@ -1,5 +1,5 @@
 import { createHash, generateKeyPairSync, sign, verify, createPrivateKey, createPublicKey, randomBytes } from "node:crypto";
-import { encodeAccountId } from "./address.mjs";
+import { encodeContinuumId } from "./continuum-address.mjs";
 
 export const hashHex = (input) => createHash("sha256").update(input).digest("hex");
 export const canonical = (value) => {
@@ -20,9 +20,11 @@ export function merkleRoot(values) {
 }
 export function generateIdentity(label = "account") {
   const { privateKey, publicKey } = generateKeyPairSync("ed25519");
+  const identifier=randomBytes(32);
   return {
     label,
-    accountId: encodeAccountId(randomBytes(32)),
+    accountId: encodeContinuumId(identifier),
+    accountKey: `a:${identifier.toString("hex")}`,
     suiteId: "K-0001",
     policyVersion: 1,
     publicKey: publicKey.export({ type: "spki", format: "der" }).toString("base64"),
