@@ -16,10 +16,15 @@ impl AccountId {
 }
 
 impl fmt::Debug for AccountId {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result { write!(f, "{}", self) }
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self)
+    }
 }
+
 impl fmt::Display for AccountId {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result { write!(f, "nv1{}", hex::encode(self.0)) }
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "nv1{}", hex::encode(self.0))
+    }
 }
 
 #[derive(Debug, Error)]
@@ -31,12 +36,16 @@ pub enum AccountIdParseError {
     #[error("account id must contain 32 bytes")]
     Length,
 }
+
 impl FromStr for AccountId {
     type Err = AccountIdParseError;
+
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let body = s.strip_prefix("nv1").ok_or(AccountIdParseError::Prefix)?;
         let bytes = hex::decode(body)?;
-        let arr: [u8; 32] = bytes.try_into().map_err(|_| AccountIdParseError::Length)?;
+        let arr: [u8; 32] = bytes
+            .try_into()
+            .map_err(|_| AccountIdParseError::Length)?;
         Ok(Self(arr))
     }
 }

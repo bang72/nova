@@ -12,8 +12,12 @@ pub enum MonetaryError {
 }
 
 pub fn checked_mint(current_supply: u128, amount: u128) -> Result<u128, MonetaryError> {
-    let next = current_supply.checked_add(amount).ok_or(MonetaryError::CapExceeded)?;
-    if next > MAX_SUPPLY_BASE { return Err(MonetaryError::CapExceeded); }
+    let next = current_supply
+        .checked_add(amount)
+        .ok_or(MonetaryError::CapExceeded)?;
+    if next > MAX_SUPPLY_BASE {
+        return Err(MonetaryError::CapExceeded);
+    }
     Ok(next)
 }
 
@@ -27,6 +31,7 @@ pub fn devnet_epoch_budget(epoch: u64) -> u64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
     #[test]
     fn cap_is_absolute() {
         assert!(checked_mint(MAX_SUPPLY_BASE - 1, 1).is_ok());

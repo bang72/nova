@@ -34,24 +34,56 @@ impl LedgerState {
         self.accounts.insert(account.id, account);
     }
 
-    pub fn account(&self, id: &AccountId) -> Option<&AccountState> { self.accounts.get(id) }
-    pub fn accounts(&self) -> impl Iterator<Item = (&AccountId, &AccountState)> { self.accounts.iter() }
+    pub fn account(&self, id: &AccountId) -> Option<&AccountState> {
+        self.accounts.get(id)
+    }
 
-    pub fn apply(&mut self, signed: &SignedTransaction, chain_id: &str, height: Height) -> Result<(), StateError> {
-        if signed.tx.chain_id != chain_id { return Err(StateError::ChainId); }
-        if signed.tx.expiry_height < height { return Err(StateError::Expired); }
-        let sender_snapshot = self.accounts.get(&signed.tx.sender).cloned().ok_or(StateError::UnknownAccount)?;
-        if signed.tx.nonce != sender_snapshot.nonce {
-            return Err(StateError::Nonce { expected: sender_snapshot.nonce, received: signed.tx.nonce });
+    pub fn accounts(&self) -> impl Iterator<Item = (&AccountId, &AccountState)> {
+        self.accounts.iter()
+    }
+
+    pub fn apply(
+        &mut self,
+        signed: &SignedTransaction,
+        chain_id: &str,
+        height: Height,
+    ) -> Result<(), StateError> {
+        if signed.tx.chain_id != chain_id {
+            return Err(StateError::ChainId);
         }
-        verify(sender_snapshot.auth.suite_id, &sender_snapshot.auth.public_key, &signed.tx.signing_bytes(), &signed.signature)
-            .map_err(|_| StateError::Signature)?;
+        if signed.tx.expiry_height < height {
+            return Err(StateError::Expired);
+        }
+        let sender_snapshot = self
+            .accounts
+            .get(&signed.tx.sender)
+            .cloned()
+            .ok_or(StateError::UnknownAccount)?;
+        if signed.tx.nonce != sender_snapshot.nonce {
+            return Err(StateError::Nonce {
+                expected: sender_snapshot.nonce,
+                received: signed.tx.nonce,
+            });
+        }
+        verify(
+            sender_snapshot.auth.suite_id,
+            &sender_snapshot.auth.public_key,
+            &signed.tx.signing_bytes(),
+            &signed.signature,
+        )
+        .map_err(|_| StateError::Signature)?;
 
         match signed.tx.action.clone() {
             Action::Transfer { to, amount } => {
-                let debit = amount.checked_add(signed.tx.fee).ok_or(StateError::Overflow)?;
-                if sender_snapshot.balance < debit { return Err(StateError::Balance); }
-                if !self.accounts.contains_key(&to) { return Err(StateError::UnknownAccount); }
+                let debit = amount
+                    .checked_add(signed.tx.fee)
+                    .ok_or(StateError::Overflow)?;
+                if sender_snapshot.balance < debit {
+                    return Err(StateError::Balance);
+                }
+                if !self.accounts.contains_key(&to) {
+                    return Err(StateError::UnknownAccount);
+                }
                 {
                     let sender = self.accounts.get_mut(&signed.tx.sender).unwrap();
                     sender.balance -= debit;
@@ -59,12 +91,20 @@ impl LedgerState {
                 }
                 {
                     let recipient = self.accounts.get_mut(&to).unwrap();
-                    recipient.balance = recipient.balance.checked_add(amount).ok_or(StateError::Overflow)?;
+                    recipient.balance = recipient
+                        .balance
+                        .checked_add(amount)
+                        .ok_or(StateError::Overflow)?;
                 }
             }
-            Action::RotateKey { new_suite_id, new_public_key } => {
+            Action::RotateKey {
+                new_suite_id,
+                new_public_key,
+            } => {
                 let sender = self.accounts.get_mut(&signed.tx.sender).unwrap();
-                if sender.balance < signed.tx.fee { return Err(StateError::Balance); }
+                if sender.balance < signed.tx.fee {
+                    return Err(StateError::Balance);
+                }
                 sender.balance -= signed.tx.fee;
                 sender.nonce += 1;
                 sender.auth.suite_id = new_suite_id;

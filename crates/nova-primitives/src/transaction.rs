@@ -5,8 +5,14 @@ use sha2::{Digest, Sha256};
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum Action {
-    Transfer { to: AccountId, amount: u64 },
-    RotateKey { new_suite_id: u16, new_public_key: [u8; 32] },
+    Transfer {
+        to: AccountId,
+        amount: u64,
+    },
+    RotateKey {
+        new_suite_id: u16,
+        new_public_key: [u8; 32],
+    },
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -34,7 +40,10 @@ impl UnsignedTransaction {
                 out.extend_from_slice(&to.0);
                 out.extend_from_slice(&amount.to_be_bytes());
             }
-            Action::RotateKey { new_suite_id, new_public_key } => {
+            Action::RotateKey {
+                new_suite_id,
+                new_public_key,
+            } => {
                 out.push(2);
                 out.extend_from_slice(&new_suite_id.to_be_bytes());
                 out.extend_from_slice(new_public_key);

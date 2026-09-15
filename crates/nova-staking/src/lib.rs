@@ -33,7 +33,10 @@ pub struct ValidatorStake {
 }
 
 #[derive(Clone, Copy, Debug)]
-pub enum SlashClass { Downtime, Equivocation }
+pub enum SlashClass {
+    Downtime,
+    Equivocation,
+}
 
 #[derive(Debug, Error)]
 pub enum StakingError {
@@ -44,12 +47,19 @@ pub enum StakingError {
 }
 
 pub fn validate_validator(v: &ValidatorStake, p: StakingParams) -> Result<(), StakingError> {
-    if v.bonded < p.min_validator_bond { return Err(StakingError::BondTooLow); }
-    if v.commission_bps > p.max_commission_bps { return Err(StakingError::CommissionTooHigh); }
+    if v.bonded < p.min_validator_bond {
+        return Err(StakingError::BondTooLow);
+    }
+    if v.commission_bps > p.max_commission_bps {
+        return Err(StakingError::CommissionTooHigh);
+    }
     Ok(())
 }
 
 pub fn slash_amount(stake: u64, class: SlashClass, p: StakingParams) -> u64 {
-    let bps = match class { SlashClass::Downtime => p.downtime_slash_bps, SlashClass::Equivocation => p.equivocation_slash_bps };
+    let bps = match class {
+        SlashClass::Downtime => p.downtime_slash_bps,
+        SlashClass::Equivocation => p.equivocation_slash_bps,
+    };
     ((stake as u128 * bps as u128) / 10_000u128) as u64
 }
