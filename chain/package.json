@@ -1,0 +1,13 @@
+{
+  "name": "@nova/l1",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "init": "node src/cli.mjs init",
+    "start": "node src/node.mjs",
+    "test": "node --test test/*.test.mjs",
+    "generate:emission": "node scripts/generate-emission.mjs"
+  }
+}

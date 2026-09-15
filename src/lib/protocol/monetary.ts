@@ -15,11 +15,11 @@ export const NOVA = {
 export function cumulativeEmission(year: bigint): bigint {
   if (year <= 0n) return 0n;
   if (year >= NOVA.emissionYears) return NOVA.emissionPool;
-  // Weight falls from 2000 to 1 across 1000 annual epochs; integer-only.
+  // Weight falls from 1000 to 1 across 1000 annual epochs; integer-only.
   const n = NOVA.emissionYears;
   const y = year;
-  const totalWeight = n * (2n * n + 1n) / 2n;
-  const elapsedWeight = y * (4n * n - y + 1n) / 2n;
+  const totalWeight = n * (n + 1n) / 2n;
+  const elapsedWeight = y * (2n * n - y + 1n) / 2n;
   return NOVA.emissionPool * elapsedWeight / totalWeight;
 }
 
