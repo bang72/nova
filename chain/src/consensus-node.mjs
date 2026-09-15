@@ -4,6 +4,7 @@ import { join, resolve } from "node:path";
 import { NovaChain } from "./core.mjs";
 import { verifyPayload } from "./crypto.mjs";
 import { formatNova } from "./emission.mjs";
+import { blockDisplayId, transactionDisplayId, validatorDisplayId } from "./address.mjs";
 
 const dataDir=resolve(process.env.NOVA_DATA_DIR??".nova"),config=JSON.parse(readFileSync(join(dataDir,"network.json"),"utf8")),host=process.env.NOVA_RPC_HOST??config.host??"127.0.0.1",port=Number(process.env.NOVA_RPC_PORT??config.port),peers=(process.env.NOVA_PEERS??config.peers.join(",")).split(",").filter(Boolean),chain=new NovaChain(dataDir).load(),validatorKey=JSON.parse(readFileSync(join(dataDir,"keys","validator.json"),"utf8")),votesPath=join(dataDir,"votes.json"),pendingPath=join(dataDir,"pending-proposal.json");
 let votes=existsSync(votesPath)?JSON.parse(readFileSync(votesPath,"utf8")):{},pendingProposal=existsSync(pendingPath)?JSON.parse(readFileSync(pendingPath,"utf8")):null,proposing=false;
@@ -16,10 +17,10 @@ const acceptCommit=block=>{if(block.header.height<=chain.state.height){const kno
 
 const server=createServer(async(request,response)=>{try{const url=new URL(request.url??"/","http://nova.local");
   if(request.method==="GET"&&url.pathname==="/health")return reply(response,200,{ok:true,chainId:chain.state.chainId,height:chain.state.height,validatorId:validatorKey.accountId,peers:peers.length});
-  if(request.method==="GET"&&url.pathname==="/status")return reply(response,200,{chainId:chain.state.chainId,height:chain.state.height,latestBlock:chain.state.lastBlockHash,validatorId:validatorKey.accountId,expectedProposer:expectedProposer(chain.state.height+1),supply:{...chain.state.supply,totalNova:formatNova(chain.state.supply.total)},mempool:chain.mempool.length});
+  if(request.method==="GET"&&url.pathname==="/status")return reply(response,200,{chainId:chain.state.chainId,height:chain.state.height,latestBlock:chain.state.lastBlockHash,latestBlockId:chain.state.height?blockDisplayId(chain.state.lastBlockHash):null,validatorId:validatorKey.accountId,validatorOperatorId:validatorDisplayId(validatorKey.accountId),expectedProposer:expectedProposer(chain.state.height+1),supply:{...chain.state.supply,totalNova:formatNova(chain.state.supply.total)},mempool:chain.mempool.length});
   if(request.method==="GET"&&url.pathname.startsWith("/account/")){const id=decodeURIComponent(url.pathname.slice(9)),account=chain.account(id);return account?reply(response,200,{accountId:id,...account,balanceNova:formatNova(account.balance)}):reply(response,404,{error:"account_not_found"})}
   if(request.method==="GET"&&url.pathname.startsWith("/block/")){const block=chain.block(Number(url.pathname.slice(7)));return block?reply(response,200,block):reply(response,404,{error:"block_not_found"})}
-  if(request.method==="POST"&&url.pathname==="/tx"){const tx=await readBody(request),txId=chain.submit(tx);if(request.headers["x-nova-forwarded"]!=="1")await Promise.allSettled(peers.map(peer=>post(peer,"/tx",tx,{"x-nova-forwarded":"1"})));return reply(response,202,{accepted:true,txId})}
+  if(request.method==="POST"&&url.pathname==="/tx"){const tx=await readBody(request),txId=chain.submit(tx);if(request.headers["x-nova-forwarded"]!=="1")await Promise.allSettled(peers.map(peer=>post(peer,"/tx",tx,{"x-nova-forwarded":"1"})));return reply(response,202,{accepted:true,txId,transactionId:transactionDisplayId(txId)})}
   if(request.method==="POST"&&url.pathname==="/consensus/proposal"){const block=await readBody(request);return reply(response,200,{signature:signProposal(block)})}
   if(request.method==="POST"&&url.pathname==="/consensus/commit"){const block=await readBody(request);return reply(response,200,acceptCommit(block))}
   return reply(response,404,{error:"not_found"});

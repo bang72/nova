@@ -1,6 +1,6 @@
-# NOVA L1 Mainnet Candidate R3
+# NOVA L1 Mainnet Candidate R4
 
-NOVA L1 R3 is a runnable, independent mainnet candidate derived from the
+NOVA L1 R4 is a runnable, independent mainnet candidate derived from the
 NOVA Millennium Social Protocol white paper. It is not an ERC-20 contract and
 does not depend on another chain.
 
@@ -18,6 +18,8 @@ Implemented:
 - deterministic certified-block import with full commitment re-execution;
 - four-process validator network with deterministic proposer rotation;
 - signed proposal voting, persistent double-sign protection and transaction broadcast;
+- native 256-bit Bech32m Account IDs with typo-resistant checksums;
+- separate non-spendable prefixes for validators, transactions and blocks;
 - versioned protocol tuple (consensus/execution/crypto/storage/network);
 - fixed integer 1,000-year emission schedule totaling exactly 240,000,000 NOVA;
 - exact 10,000,000 NOVA genesis allocation buckets;
@@ -59,6 +61,18 @@ NOVA_RPC_URL=http://127.0.0.1:4181 node src/cli.mjs transfer \
   --to <NOVA_ACCOUNT_ID> --amount 12.5
 ```
 
+## Native ecosystem identifiers
+
+- `nova1...` — mainnet payment account;
+- `tnova1...` — testnet payment account;
+- `novaval1...` — validator display identity, never a payment destination;
+- `novatx1...` — transaction display identity;
+- `novablk1...` — block display identity.
+
+Account IDs remain stable during authorization-key rotation. Wallets reject
+mixed case, corrupted checksums, invalid padding, wrong lengths and unsupported
+address versions.
+
 ## Container
 
 ```bash
@@ -73,7 +87,7 @@ For the four-validator topology, initialize `.nova-network` first and run
 
 ## Security boundary
 
-R3 contains a real multi-process validator network, replicated state machine,
+R4 contains a real multi-process validator network, replicated state machine,
 quorum verification and persisted double-sign protection. Consensus messages
 are cryptographically signed, but transport is currently allowlisted HTTP and
 does not yet provide production mTLS or denial-of-service protection. The

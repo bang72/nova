@@ -2,6 +2,7 @@ import { mkdirSync, readFileSync, renameSync, writeFileSync, appendFileSync, exi
 import { join } from "node:path";
 import { canonical, hashObject, merkleRoot, signPayload, verifyPayload } from "./crypto.mjs";
 import { cumulativeEmission, GENESIS_SUPPLY, HARD_CAP } from "./emission.mjs";
+import { isAccountId } from "./address.mjs";
 
 export const PROTOCOL = Object.freeze({ consensus: "C1", execution: "E1", crypto: "K1", storage: "S1", network: "N1" });
 export const BASE_FEE = 1_000n;
@@ -34,7 +35,7 @@ export class NovaChain {
     for (const action of tx.actions) {
       if (action.type === "transfer") { const amount = BigInt(action.amount); if (amount <= 0n) throw new Error("transfer amount must be positive"); if (!state.accounts[action.to]) throw new Error("recipient does not exist"); required += amount; }
       else if (action.type === "rotate_key") { if (!action.publicKey || action.suiteId !== "K-0001") throw new Error("invalid key rotation"); }
-      else if (action.type === "create_account") { if (!/^nova1[a-f0-9]{40}$/.test(action.accountId) || state.accounts[action.accountId]) throw new Error("invalid or existing account id"); if (action.suiteId !== "K-0001" || !action.publicKey) throw new Error("invalid account authorization policy"); }
+      else if (action.type === "create_account") { if (!isAccountId(action.accountId) || state.accounts[action.accountId]) throw new Error("invalid or existing account id"); if (action.suiteId !== "K-0001" || !action.publicKey) throw new Error("invalid account authorization policy"); }
       else throw new Error(`unsupported action: ${action.type}`);
     }
     if (BigInt(account.balance) < required) throw new Error("insufficient balance");

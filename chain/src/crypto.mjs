@@ -1,4 +1,5 @@
 import { createHash, generateKeyPairSync, sign, verify, createPrivateKey, createPublicKey, randomBytes } from "node:crypto";
+import { encodeAccountId } from "./address.mjs";
 
 export const hashHex = (input) => createHash("sha256").update(input).digest("hex");
 export const canonical = (value) => {
@@ -21,7 +22,7 @@ export function generateIdentity(label = "account") {
   const { privateKey, publicKey } = generateKeyPairSync("ed25519");
   return {
     label,
-    accountId: `nova1${randomBytes(20).toString("hex")}`,
+    accountId: encodeAccountId(randomBytes(32)),
     suiteId: "K-0001",
     policyVersion: 1,
     publicKey: publicKey.export({ type: "spki", format: "der" }).toString("base64"),
