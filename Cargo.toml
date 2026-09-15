@@ -5,6 +5,9 @@ members = [
   "crates/nova-crypto",
   "crates/nova-monetary",
   "crates/nova-state",
+  "crates/nova-consensus",
+  "crates/nova-staking",
+  "crates/nova-genesis",
   "crates/nova-node",
   "crates/nova-cli",
 ]

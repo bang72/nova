@@ -1,0 +1,10 @@
+[package]
+name = "nova-staking"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+nova-primitives = { path = "../nova-primitives" }
+serde.workspace = true
+thiserror.workspace = true
