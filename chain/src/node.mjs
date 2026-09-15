@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { NovaChain } from "./core.mjs";
 import { formatNova } from "./emission.mjs";
-import { blockDisplayId, transactionDisplayId } from "./address.mjs";
+import { blockDisplayId, transactionDisplayId } from "./continuum-address.mjs";
 
 const dataDir = resolve(process.env.NOVA_DATA_DIR ?? ".nova");
 const port = Number(process.env.NOVA_RPC_PORT ?? 4178);
