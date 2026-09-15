@@ -7,10 +7,25 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum Role { USER MODERATOR ADMIN }
-enum Visibility { PUBLIC FOLLOWERS PRIVATE }
-enum ReportStatus { OPEN REVIEWING ACTIONED DISMISSED }
-enum ReactionKind { APPRECIATE }
+enum Role {
+  USER
+  MODERATOR
+  ADMIN
+}
+enum Visibility {
+  PUBLIC
+  FOLLOWERS
+  PRIVATE
+}
+enum ReportStatus {
+  OPEN
+  REVIEWING
+  ACTIONED
+  DISMISSED
+}
+enum ReactionKind {
+  APPRECIATE
+}
 
 model User {
   id String @id @default(cuid())
