@@ -78,14 +78,28 @@ export class NovaChain {
     } catch(error){this.state=before;if(txEntries.length)this.mempool.unshift(...txEntries);throw error} finally{this.processing=false}
   }
   verifyBlockCertificate(block,state=this.state){const vote={chainId:block.header.chainId,height:block.header.height,blockHash:block.hash,stateRoot:block.header.stateRoot};let signed=0n,total=0n;const seen=new Set();for(const validator of Object.values(state.validators))total+=BigInt(validator.stake);for(const proof of block.certificate.signatures){if(seen.has(proof.validatorId))continue;const validator=state.validators[proof.validatorId];if(validator&&verifyPayload(vote,proof.signature,validator.publicKey)){seen.add(proof.validatorId);signed+=BigInt(validator.stake)}}if(signed*3n<total*2n)throw new Error("validator certificate below 2/3 stake threshold");return true}
-  importBlock(block){
+  buildBlockProposal(validatorKey,timestamp=Math.floor(Date.now()/1000)){
+    if(!this.state.validators[validatorKey.accountId])throw new Error("proposer is not an active validator");
+    if(timestamp<this.state.lastTimestamp)throw new Error("block timestamp moved backwards");
+    if(timestamp>Math.floor(Date.now()/1000)+30)throw new Error("block timestamp exceeds allowed clock drift");
+    const working=clone(this.state),height=working.height+1,txEntries=this.mempool.slice(0,100),receipts=[];
+    for(const entry of txEntries){try{receipts.push(this.applyTransaction(entry.tx,working,validatorKey.accountId,timestamp))}catch(error){receipts.push({txId:entry.id,success:false,error:error.message,events:[]})}}
+    const emission=this.applyEmission(working,timestamp,validatorKey.accountId);working.height=height;working.lastTimestamp=timestamp;
+    const stateRoot=hashObject({accounts:working.accounts,validators:working.validators,supply:working.supply});
+    const header={chainId:working.chainId,height,parentCommitment:this.state.lastBlockHash,proposerId:validatorKey.accountId,epoch:Math.floor((timestamp-working.genesisTime)/working.epochSeconds),timestamp,stateRoot,transactionRoot:merkleRoot(txEntries.map(entry=>entry.tx)),receiptRoot:merkleRoot(receipts),dataAvailabilityCommitment:hashObject(txEntries.map(entry=>canonical(entry.tx))),protocolVersion:PROTOCOL,migrationMarker:null};
+    return{header,transactions:txEntries.map(entry=>entry.tx),receipts,emission:emission.toString(),certificate:{round:0,signatures:[]},hash:hashObject(header)};
+  }
+  evaluateBlock(block,requireCertificate=true){
     if(block.header.chainId!==this.state.chainId)throw new Error("block chain_id mismatch");
     if(block.header.height!==this.state.height+1)throw new Error("non-sequential block height");
     if(block.header.parentCommitment!==this.state.lastBlockHash)throw new Error("parent commitment mismatch");
+    if(!this.state.validators[block.header.proposerId])throw new Error("unknown block proposer");
+    if(block.header.timestamp<this.state.lastTimestamp)throw new Error("block timestamp moved backwards");
+    if(canonical(block.header.protocolVersion)!==canonical(PROTOCOL))throw new Error("unsupported protocol version");
     if(hashObject(block.header)!==block.hash)throw new Error("block hash mismatch");
     if(block.header.transactionRoot!==merkleRoot(block.transactions))throw new Error("transaction root mismatch");
     if(block.header.dataAvailabilityCommitment!==hashObject(block.transactions.map(tx=>canonical(tx))))throw new Error("data availability commitment mismatch");
-    this.verifyBlockCertificate(block,this.state);
+    if(requireCertificate)this.verifyBlockCertificate(block,this.state);
     const working=clone(this.state),receipts=[];
     for(const tx of block.transactions){const txId=hashObject(tx);try{receipts.push(this.applyTransaction(tx,working,block.header.proposerId,block.header.timestamp))}catch(error){receipts.push({txId,success:false,error:error.message,events:[]})}}
     const emission=this.applyEmission(working,block.header.timestamp,block.header.proposerId);
@@ -94,7 +108,15 @@ export class NovaChain {
     if(stateRoot!==block.header.stateRoot)throw new Error("state root mismatch");
     if(merkleRoot(receipts)!==block.header.receiptRoot)throw new Error("receipt root mismatch");
     if(emission.toString()!==block.emission)throw new Error("emission mismatch");
-    this.assertSupply(working);working.lastBlockHash=block.hash;this.state=working;
+    this.assertSupply(working);working.lastBlockHash=block.hash;return working;
+  }
+  signBlockProposal(block,validatorKey){
+    if(!this.state.validators[validatorKey.accountId])throw new Error("signer is not an active validator");
+    this.evaluateBlock(block,false);const vote={chainId:block.header.chainId,height:block.header.height,blockHash:block.hash,stateRoot:block.header.stateRoot};
+    return{validatorId:validatorKey.accountId,suiteId:"K-0001",signature:signPayload(vote,validatorKey.privateKey)};
+  }
+  importBlock(block){
+    const working=this.evaluateBlock(block,true),included=new Set(block.transactions.map(hashObject));this.state=working;this.mempool=this.mempool.filter(entry=>!included.has(entry.id));
     appendFileSync(this.blocksPath,encode(block).replace(/\n/g,"")+"\n");this.save();return block;
   }
   block(height){if(!existsSync(this.blocksPath))return null;for(const line of readFileSync(this.blocksPath,"utf8").trim().split("\n")){if(!line)continue;const block=JSON.parse(line);if(block.header.height===height)return block}return null}
