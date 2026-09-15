@@ -1,0 +1,11 @@
+[package]
+name = "nova-state"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+nova-primitives = { path = "../nova-primitives" }
+nova-crypto = { path = "../nova-crypto" }
+sha2.workspace = true
+thiserror.workspace = true

@@ -1,0 +1,13 @@
+[package]
+name = "nova-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+clap.workspace = true
+ed25519-dalek.workspace = true
+hex.workspace = true
+nova-primitives = { path = "../nova-primitives" }
+nova-crypto = { path = "../nova-crypto" }
