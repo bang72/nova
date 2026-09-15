@@ -1,0 +1,18 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { mkdtempSync, readFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { NovaChain, createGenesis } from "../src/core.mjs";
+import { generateIdentity, signPayload } from "../src/crypto.mjs";
+import { ANNUAL_EMISSION, EMISSION_POOL, GENESIS_SUPPLY, HARD_CAP, parseNova } from "../src/emission.mjs";
+
+const setup=()=>{const dir=mkdtempSync(join(tmpdir(),"nova-chain-")),keys=["ecosystem","validator","foundation","users","liquidity","audits"].map(generateIdentity),genesisTime=Math.floor(Date.now()/1000)-1;createGenesis(dir,keys,{chainId:"nova-test-1",genesisTime,secondsPerYear:31557600});return{dir,keys,chain:new NovaChain(dir).load(),validator:keys.find(k=>k.label==="validator"),ecosystem:keys.find(k=>k.label==="ecosystem")}};
+const makeTx=(chain,key,actions,overrides={})=>{const payload={chainDomain:chain.state.chainId,accountId:key.accountId,authPolicyVersion:chain.account(key.accountId).policy.version,nonce:chain.account(key.accountId).nonce+1,actions,feePolicy:{payer:key.accountId,maxFee:"1000"},expiry:Math.floor(Date.now()/1000)+60,...overrides};return{...payload,authorizationProof:{suiteId:key.suiteId,signature:signPayload(payload,key.privateKey)}}};
+
+test("emission schedule is exact and bounded",()=>{assert.equal(ANNUAL_EMISSION.length,1000);assert.equal(ANNUAL_EMISSION.reduce((a,b)=>a+b,0n),EMISSION_POOL);assert.equal(GENESIS_SUPPLY+EMISSION_POOL,HARD_CAP)});
+test("genesis allocation accounts for exactly ten million NOVA",()=>{const{chain}=setup();chain.assertSupply(chain.state);assert.equal(BigInt(chain.state.supply.total),GENESIS_SUPPLY)});
+test("signed transfer finalizes and persists",()=>{const{chain,validator,ecosystem,keys,dir}=setup(),recipient=keys.find(k=>k.label==="liquidity"),amount=parseNova("25.5"),before=BigInt(chain.account(recipient.accountId).balance),tx=makeTx(chain,ecosystem,[{type:"transfer",to:recipient.accountId,amount:amount.toString()}]);chain.submit(tx);const block=chain.produceBlock(validator);assert.equal(block.receipts[0].success,true);assert.equal(BigInt(chain.account(recipient.accountId).balance),before+amount);assert.equal(JSON.parse(readFileSync(join(dir,"state.json"),"utf8")).height,1);chain.assertSupply(chain.state)});
+test("replay and bad signatures are rejected",()=>{const{chain,validator,ecosystem,keys}=setup(),recipient=keys.find(k=>k.label==="users"),tx=makeTx(chain,ecosystem,[{type:"transfer",to:recipient.accountId,amount:"1"}]);chain.submit(tx);chain.produceBlock(validator);assert.throws(()=>chain.submit(tx),/invalid nonce/);const forged=makeTx(chain,ecosystem,[{type:"transfer",to:recipient.accountId,amount:"1"}]);forged.authorizationProof.signature=generateIdentity("attacker").privateKey;assert.throws(()=>chain.submit(forged),/invalid signature/)});
+test("tampered finality certificates are rejected",()=>{const{chain,validator}=setup(),block=chain.produceBlock(validator);block.certificate.signatures[0].signature=generateIdentity("attacker").privateKey;assert.throws(()=>chain.verifyBlockCertificate(block),/below 2\/3 stake threshold/)});
+test("hard cap remains exact at the end of millennium",()=>{const dir=mkdtempSync(join(tmpdir(),"nova-millennium-")),keys=["ecosystem","validator","foundation","users","liquidity","audits"].map(generateIdentity),now=Math.floor(Date.now()/1000);createGenesis(dir,keys,{chainId:"nova-millennium-test",genesisTime:now-1000*31557600,secondsPerYear:31557600});const chain=new NovaChain(dir).load(),validator=keys.find(k=>k.label==="validator");chain.produceBlock(validator,now);assert.equal(BigInt(chain.state.supply.total),HARD_CAP);chain.assertSupply(chain.state)});
