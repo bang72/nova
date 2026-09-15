@@ -62,10 +62,7 @@ impl ValidatorSet {
         self.total_power
     }
 
-    pub fn verify_quorum(
-        &self,
-        certificate: &FinalityCertificate,
-    ) -> Result<(), ConsensusError> {
+    pub fn verify_quorum(&self, certificate: &FinalityCertificate) -> Result<(), ConsensusError> {
         let mut seen = BTreeSet::new();
         let mut signed = 0u128;
         for signer in &certificate.signers {

@@ -43,9 +43,7 @@ impl FromStr for AccountId {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let body = s.strip_prefix("nv1").ok_or(AccountIdParseError::Prefix)?;
         let bytes = hex::decode(body)?;
-        let arr: [u8; 32] = bytes
-            .try_into()
-            .map_err(|_| AccountIdParseError::Length)?;
+        let arr: [u8; 32] = bytes.try_into().map_err(|_| AccountIdParseError::Length)?;
         Ok(Self(arr))
     }
 }

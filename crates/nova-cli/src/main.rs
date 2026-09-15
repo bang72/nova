@@ -27,8 +27,7 @@ fn main() -> anyhow::Result<()> {
     match Cli::parse().command {
         Command::Keygen { out } => {
             let key = generate_ed25519();
-            fs::write(&out, hex::encode(key.to_bytes()))
-                .with_context(|| format!("write {out}"))?;
+            fs::write(&out, hex::encode(key.to_bytes())).with_context(|| format!("write {out}"))?;
             let pk = public_key(&key);
             println!("account_id={}", AccountId::from_initial_key(&pk));
             println!("public_key={}", hex::encode(pk));
