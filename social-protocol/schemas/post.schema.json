@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nova.example/schema/social/post/v1",
+  "title": "NOVA Social Post v1",
+  "type": "object",
+  "required": ["version", "author_said", "created_at", "text"],
+  "properties": {
+    "version": { "const": 1 },
+    "author_said": { "type": "string", "minLength": 16, "maxLength": 160 },
+    "created_at": { "type": "string", "format": "date-time" },
+    "text": { "type": "string", "maxLength": 1000 },
+    "reply_to": { "type": ["string", "null"] },
+    "media": { "type": "array", "maxItems": 4, "items": { "type": "string" } }
+  },
+  "additionalProperties": false
+}

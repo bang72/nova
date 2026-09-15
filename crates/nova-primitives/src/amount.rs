@@ -1,0 +1,4 @@
+pub const NOVA_DECIMALS: u32 = 8;
+pub const NOVA_BASE: u64 = 100_000_000;
+pub const MAX_SUPPLY_NOVA: u64 = 250_000_000;
+pub const MAX_SUPPLY_BASE: u128 = MAX_SUPPLY_NOVA as u128 * NOVA_BASE as u128;

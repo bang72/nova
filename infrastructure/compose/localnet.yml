@@ -1,0 +1,14 @@
+services:
+  node:
+    build:
+      context: ../..
+      dockerfile: infrastructure/docker/node.Dockerfile
+    ports: ["7711:7711"]
+    environment:
+      RUST_LOG: nova_node=info,tower_http=info
+  explorer:
+    image: nginx:alpine
+    volumes:
+      - ../../apps/explorer:/usr/share/nginx/html:ro
+    ports: ["8080:80"]
+    depends_on: [node]
