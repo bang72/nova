@@ -1,0 +1,45 @@
+services:
+  node-1:
+    build: { context: .., dockerfile: chain/Dockerfile }
+    command: ["node", "chain/src/consensus-node.mjs"]
+    restart: unless-stopped
+    environment:
+      NOVA_DATA_DIR: /var/lib/nova
+      NOVA_RPC_HOST: 0.0.0.0
+      NOVA_RPC_PORT: "4178"
+      NOVA_PEERS: http://node-2:4178,http://node-3:4178,http://node-4:4178
+    ports: ["4181:4178"]
+    volumes: ["./.nova-network/node-1:/var/lib/nova"]
+  node-2:
+    build: { context: .., dockerfile: chain/Dockerfile }
+    command: ["node", "chain/src/consensus-node.mjs"]
+    restart: unless-stopped
+    environment:
+      NOVA_DATA_DIR: /var/lib/nova
+      NOVA_RPC_HOST: 0.0.0.0
+      NOVA_RPC_PORT: "4178"
+      NOVA_PEERS: http://node-1:4178,http://node-3:4178,http://node-4:4178
+    ports: ["4182:4178"]
+    volumes: ["./.nova-network/node-2:/var/lib/nova"]
+  node-3:
+    build: { context: .., dockerfile: chain/Dockerfile }
+    command: ["node", "chain/src/consensus-node.mjs"]
+    restart: unless-stopped
+    environment:
+      NOVA_DATA_DIR: /var/lib/nova
+      NOVA_RPC_HOST: 0.0.0.0
+      NOVA_RPC_PORT: "4178"
+      NOVA_PEERS: http://node-1:4178,http://node-2:4178,http://node-4:4178
+    ports: ["4183:4178"]
+    volumes: ["./.nova-network/node-3:/var/lib/nova"]
+  node-4:
+    build: { context: .., dockerfile: chain/Dockerfile }
+    command: ["node", "chain/src/consensus-node.mjs"]
+    restart: unless-stopped
+    environment:
+      NOVA_DATA_DIR: /var/lib/nova
+      NOVA_RPC_HOST: 0.0.0.0
+      NOVA_RPC_PORT: "4178"
+      NOVA_PEERS: http://node-1:4178,http://node-2:4178,http://node-3:4178
+    ports: ["4184:4178"]
+    volumes: ["./.nova-network/node-4:/var/lib/nova"]

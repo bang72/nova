@@ -1,0 +1,16 @@
+services:
+  nova-node:
+    build:
+      context: ..
+      dockerfile: chain/Dockerfile
+    restart: unless-stopped
+    environment:
+      NOVA_DATA_DIR: /var/lib/nova
+      NOVA_RPC_HOST: 0.0.0.0
+      NOVA_RPC_PORT: "4178"
+    ports:
+      - "4178:4178"
+    volumes:
+      - nova-data:/var/lib/nova
+volumes:
+  nova-data:

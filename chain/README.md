@@ -1,0 +1,101 @@
+# NOVA L1 Mainnet Candidate R5
+
+NOVA L1 R5 is a runnable, independent mainnet candidate derived from the
+NOVA Millennium Social Protocol white paper. It is not an ERC-20 contract and
+does not depend on another chain.
+
+Implemented:
+
+- deterministic account state and canonical transaction encoding;
+- stable Account ID separated from rotatable Ed25519 authorization keys;
+- signed transfer and key-rotation transactions;
+- nonce, expiry, replay-domain, fee and hard-cap enforcement;
+- persistent blocks, receipts and atomic state snapshots;
+- deterministic Merkle commitments for state, transactions and receipts;
+- validator-signed block certificates and stake-weight threshold verification;
+- replicated multi-validator execution with independently persisted ledger state;
+- duplicate-vote resistance and rejection of certificates below two-thirds stake;
+- deterministic certified-block import with full commitment re-execution;
+- four-process validator network with deterministic proposer rotation;
+- signed proposal voting, persistent double-sign protection and transaction broadcast;
+- native NOVA Continuum Address envelopes with 256-bit Account IDs;
+- 128-bit integrity checks, permanent Realm ID and crypto-suite versioning;
+- separate non-spendable prefixes for validators, transactions and blocks;
+- versioned protocol tuple (consensus/execution/crypto/storage/network);
+- fixed integer 1,000-year emission schedule totaling exactly 240,000,000 NOVA;
+- exact 10,000,000 NOVA genesis allocation buckets;
+- HTTP JSON RPC and command-line wallet.
+
+## Run
+
+```bash
+pnpm nova:init
+pnpm nova:start
+```
+
+In another terminal:
+
+```bash
+pnpm nova:status
+pnpm nova:balance -- --account <NOVA_ACCOUNT_ID>
+pnpm nova:transfer -- --key .nova/keys/ecosystem.json --to <NOVA_ACCOUNT_ID> --amount 12.5
+```
+
+The default RPC is `http://127.0.0.1:4178`. Set `NOVA_DATA_DIR` or
+`NOVA_RPC_URL` to use another location.
+
+## Four-validator network
+
+```bash
+cd chain
+npm run network:init
+npm run network:start
+```
+
+The four local validator RPC endpoints are `4181` through `4184`. Submit a
+signed transfer to any validator and it is broadcast before the next proposer
+round:
+
+```bash
+NOVA_RPC_URL=http://127.0.0.1:4181 node src/cli.mjs transfer \
+  --key .nova-network/client-keys/ecosystem.json \
+  --to <NOVA_ACCOUNT_ID> --amount 12.5
+```
+
+## NOVA Continuum identifiers
+
+- `nva-m-a1-...` — mainnet payment account;
+- `nva-t-a1-...` — testnet payment account;
+- `nva-m-v1-...` — validator identity, never a payment destination;
+- `nva-m-x1-...` — transaction identity;
+- `nva-m-b1-...` — block identity.
+
+The ledger is keyed by the format-independent 256-bit Account ID, not by the
+printed address. A future NCA version can therefore render the same account
+again without moving its balance. Wallets reject mixed case, corrupted
+checksums, invalid grouping, wrong realms, cross-network forms, wrong lengths
+and unsupported versions. A single-symbol diagnostic can suggest a correction,
+but software never applies it automatically.
+
+## Container
+
+```bash
+cd chain
+docker compose run --rm nova-node init
+docker compose up --build
+```
+
+For the four-validator topology, initialize `.nova-network` first and run
+`docker compose -f network-compose.yaml up --build`. Ports `4181` through
+`4184` expose the independent nodes.
+
+## Security boundary
+
+R5 contains a real multi-process validator network, replicated state machine,
+quorum verification and persisted double-sign protection. Consensus messages
+are cryptographically signed, but transport is currently allowlisted HTTP and
+does not yet provide production mTLS or denial-of-service protection. The
+reference implementation is also still a single client. Mainnet activation
+therefore remains locked behind hardened transport, an independent second
+client, an adversarial public testnet, formal checks, external audits and a
+public genesis ceremony as required by the white paper.

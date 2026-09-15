@@ -1,0 +1,141 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  USER
+  MODERATOR
+  ADMIN
+}
+enum Visibility {
+  PUBLIC
+  FOLLOWERS
+  PRIVATE
+}
+enum ReportStatus {
+  OPEN
+  REVIEWING
+  ACTIONED
+  DISMISSED
+}
+enum ReactionKind {
+  APPRECIATE
+}
+
+model User {
+  id String @id @default(cuid())
+  handle String @unique @db.VarChar(32)
+  displayName String @db.VarChar(80)
+  bio String? @db.VarChar(280)
+  role Role @default(USER)
+  passwordHash String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  posts Post[]
+  sessions Session[]
+  reactions Reaction[]
+  bookmarks Bookmark[]
+  sentMessages Message[]
+  memberships ConversationMember[]
+  following Follow[] @relation("following")
+  followers Follow[] @relation("followers")
+}
+
+model Session {
+  id String @id @default(cuid())
+  tokenHash String @unique
+  userId String
+  user User @relation(fields:[userId], references:[id], onDelete:Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  @@index([userId])
+}
+
+model Post {
+  id String @id @default(cuid())
+  authorId String
+  author User @relation(fields:[authorId], references:[id], onDelete:Cascade)
+  parentId String?
+  parent Post? @relation("PostReplies", fields:[parentId], references:[id], onDelete:Cascade)
+  replies Post[] @relation("PostReplies")
+  body String @db.VarChar(1000)
+  visibility Visibility @default(PUBLIC)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  reactions Reaction[]
+  bookmarks Bookmark[]
+  @@index([authorId, createdAt])
+  @@index([parentId, createdAt])
+}
+
+model Follow {
+  followerId String
+  followingId String
+  follower User @relation("following", fields:[followerId], references:[id], onDelete:Cascade)
+  following User @relation("followers", fields:[followingId], references:[id], onDelete:Cascade)
+  createdAt DateTime @default(now())
+  @@id([followerId, followingId])
+}
+
+model Reaction {
+  userId String
+  postId String
+  kind ReactionKind @default(APPRECIATE)
+  user User @relation(fields:[userId], references:[id], onDelete:Cascade)
+  post Post @relation(fields:[postId], references:[id], onDelete:Cascade)
+  createdAt DateTime @default(now())
+  @@id([userId, postId, kind])
+}
+
+model Bookmark {
+  userId String
+  postId String
+  user User @relation(fields:[userId], references:[id], onDelete:Cascade)
+  post Post @relation(fields:[postId], references:[id], onDelete:Cascade)
+  createdAt DateTime @default(now())
+  @@id([userId, postId])
+}
+
+model Conversation {
+  id String @id @default(cuid())
+  createdAt DateTime @default(now())
+  members ConversationMember[]
+  messages Message[]
+}
+
+model ConversationMember {
+  conversationId String
+  userId String
+  conversation Conversation @relation(fields:[conversationId], references:[id], onDelete:Cascade)
+  user User @relation(fields:[userId], references:[id], onDelete:Cascade)
+  joinedAt DateTime @default(now())
+  @@id([conversationId, userId])
+}
+
+model Message {
+  id String @id @default(cuid())
+  conversationId String
+  senderId String
+  body String @db.VarChar(4000)
+  conversation Conversation @relation(fields:[conversationId], references:[id], onDelete:Cascade)
+  sender User @relation(fields:[senderId], references:[id], onDelete:Cascade)
+  createdAt DateTime @default(now())
+  @@index([conversationId, createdAt])
+}
+
+model Report {
+  id String @id @default(cuid())
+  reporterId String
+  targetType String @db.VarChar(32)
+  targetId String
+  reason String @db.VarChar(500)
+  status ReportStatus @default(OPEN)
+  createdAt DateTime @default(now())
+  reviewedAt DateTime?
+  @@index([status, createdAt])
+}
