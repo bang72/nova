@@ -1,6 +1,6 @@
-# NOVA L1 R1
+# NOVA L1 R2
 
-NOVA L1 R1 is a runnable, independent blockchain devnet derived from the
+NOVA L1 R2 is a runnable, independent blockchain testnet candidate derived from the
 NOVA Millennium Social Protocol white paper. It is not an ERC-20 contract and
 does not depend on another chain.
 
@@ -13,6 +13,9 @@ Implemented:
 - persistent blocks, receipts and atomic state snapshots;
 - deterministic Merkle commitments for state, transactions and receipts;
 - validator-signed block certificates and stake-weight threshold verification;
+- replicated multi-validator execution with independently persisted ledger state;
+- duplicate-vote resistance and rejection of certificates below two-thirds stake;
+- deterministic certified-block import with full commitment re-execution;
 - versioned protocol tuple (consensus/execution/crypto/storage/network);
 - fixed integer 1,000-year emission schedule totaling exactly 240,000,000 NOVA;
 - exact 10,000,000 NOVA genesis allocation buckets;
@@ -49,7 +52,9 @@ RPC port `4178`.
 
 ## Security boundary
 
-R1 is a real single-validator devnet implementation, not a mainnet candidate.
-Mainnet still requires independent second-client interoperability, adversarial
-testnet, formal checks, external audits, validator networking and a public
-genesis ceremony as required by the white paper.
+R2 contains a real multi-validator state machine and quorum verification, but it
+is not being represented as audited mainnet software. Validator transport and
+peer discovery are not complete, and the reference implementation is still a
+single client. Mainnet therefore still requires authenticated P2P networking,
+an independent second client, adversarial public testnet, formal checks,
+external audits and a public genesis ceremony as required by the white paper.

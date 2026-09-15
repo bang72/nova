@@ -1,4 +1,4 @@
-# NOVA Protocol R1 - Normative Devnet Profile
+# NOVA Protocol R2 - Normative Testnet Profile
 
 ## Identity
 
@@ -30,22 +30,28 @@ Total supply MUST NOT exceed 250,000,000 NOVA.
 Transactions contain `chainDomain`, `accountId`, `authPolicyVersion`,
 `nonce`, one to eight actions, `feePolicy`, `expiry`, and an
 `authorizationProof`. The transaction ID is the SHA-256 hash of canonical
-encoding. R1 actions are `transfer`, `create_account`, and `rotate_key`.
+encoding. R2 actions are `transfer`, `create_account`, and `rotate_key`.
 
 ## Block envelope
 
-Headers commit to chain ID, parent, height, epoch, timestamp, state root,
-transaction root, receipt root, data-availability payload, protocol tuple and
-optional migration marker. A certificate signs the block hash and state root.
-At least two thirds of active stake must sign.
+Headers commit to chain ID, parent, height, epoch, proposer, timestamp, state
+root, transaction root, receipt root, data-availability payload, protocol tuple
+and optional migration marker. A certificate signs the block hash and state
+root. At least two thirds of active stake must sign.
 
 ## Version tuple
 
-R1 is `C1/E1/K1/S1/N1`. Every decoder MUST reject unsupported semantics rather
-than silently interpreting another version.
+R2 retains `C1/E1/K1/S1/N1`. Every decoder MUST reject unsupported semantics
+rather than silently interpreting another version.
 
-## R1 boundary
+## Consensus boundary
 
-R1 is suitable for deterministic local/devnet operation and conformance work.
-It is not authorized for a monetary mainnet before the white paper launch
-gates are met.
+R2 executes certified blocks independently on every replica, checks all
+transaction, receipt, state and data-availability commitments, and only imports
+a block when distinct validator signatures represent at least two thirds of
+bonded stake. Duplicate signatures from one validator contribute stake once.
+
+The replicated consensus state machine is suitable for deterministic testnet
+and conformance work. Authenticated P2P transport and peer discovery are not
+complete, so R2 is not authorized for a monetary mainnet before the white paper
+launch gates are met.
