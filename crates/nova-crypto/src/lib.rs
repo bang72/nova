@@ -14,6 +14,10 @@ pub enum CryptoError {
     Signature,
 }
 
+pub fn suite_supported(suite_id: u16) -> bool {
+    suite_id == ED25519_SUITE_ID
+}
+
 pub fn generate_ed25519() -> SigningKey {
     SigningKey::generate(&mut OsRng)
 }
@@ -32,7 +36,7 @@ pub fn verify(
     msg: &[u8],
     sig: &[u8],
 ) -> Result<(), CryptoError> {
-    if suite_id != ED25519_SUITE_ID {
+    if !suite_supported(suite_id) {
         return Err(CryptoError::UnsupportedSuite(suite_id));
     }
     let key = VerifyingKey::from_bytes(public_key).map_err(|_| CryptoError::PublicKey)?;

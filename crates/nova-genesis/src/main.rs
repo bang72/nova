@@ -2,7 +2,7 @@ use anyhow::{bail, Context};
 use clap::{Parser, Subcommand};
 use nova_primitives::{AccountId, MAX_SUPPLY_BASE};
 use serde::{Deserialize, Serialize};
-use std::{fs, str::FromStr};
+use std::{collections::BTreeSet, fs, str::FromStr};
 
 #[derive(Parser)]
 #[command(
@@ -31,6 +31,7 @@ struct Genesis {
 #[derive(Debug, Serialize, Deserialize)]
 struct GenesisAccount {
     account_id: String,
+    account_seed_hex: String,
     public_key_hex: String,
     balance: u64,
 }
@@ -59,14 +60,21 @@ fn verify(path: &str) -> anyhow::Result<()> {
     if g.validators.is_empty() {
         bail!("genesis has no validators");
     }
+    let mut ids = BTreeSet::new();
     let mut total = 0u128;
     for a in &g.accounts {
         let id = AccountId::from_str(&a.account_id)?;
-        let pk: [u8; 32] = hex::decode(&a.public_key_hex)?
+        if !ids.insert(id) {
+            bail!("duplicate genesis account {}", a.account_id);
+        }
+        let seed: [u8; 32] = hex::decode(&a.account_seed_hex)?
+            .try_into()
+            .map_err(|_| anyhow::anyhow!("account seed must be 32 bytes"))?;
+        let _: [u8; 32] = hex::decode(&a.public_key_hex)?
             .try_into()
             .map_err(|_| anyhow::anyhow!("public key must be 32 bytes"))?;
-        if id != AccountId::from_initial_key(&pk) {
-            bail!("account {} does not match initial public key", a.account_id);
+        if id != AccountId::from_seed(&seed) {
+            bail!("account {} does not match account seed", a.account_id);
         }
         total = total
             .checked_add(a.balance as u128)
@@ -76,7 +84,10 @@ fn verify(path: &str) -> anyhow::Result<()> {
         bail!("genesis exceeds hard cap");
     }
     for v in &g.validators {
-        AccountId::from_str(&v.account_id)?;
+        let id = AccountId::from_str(&v.account_id)?;
+        if !ids.contains(&id) {
+            bail!("validator {} is not a genesis account", v.account_id);
+        }
         if v.voting_power == 0 {
             bail!("validator power must be positive");
         }

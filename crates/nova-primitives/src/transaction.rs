@@ -19,6 +19,7 @@ pub enum Action {
 pub struct UnsignedTransaction {
     pub chain_id: String,
     pub sender: AccountId,
+    pub auth_policy_version: u32,
     pub nonce: u64,
     pub fee: u64,
     pub expiry_height: Height,
@@ -27,10 +28,11 @@ pub struct UnsignedTransaction {
 
 impl UnsignedTransaction {
     pub fn signing_bytes(&self) -> Vec<u8> {
-        let mut out = Vec::with_capacity(160);
+        let mut out = Vec::with_capacity(164);
         out.extend_from_slice(b"NOVA_TX_V1\0");
         put_bytes(&mut out, self.chain_id.as_bytes());
         out.extend_from_slice(&self.sender.0);
+        out.extend_from_slice(&self.auth_policy_version.to_be_bytes());
         out.extend_from_slice(&self.nonce.to_be_bytes());
         out.extend_from_slice(&self.fee.to_be_bytes());
         out.extend_from_slice(&self.expiry_height.to_be_bytes());

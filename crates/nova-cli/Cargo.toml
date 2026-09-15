@@ -11,3 +11,6 @@ ed25519-dalek.workspace = true
 hex.workspace = true
 nova-primitives = { path = "../nova-primitives" }
 nova-crypto = { path = "../nova-crypto" }
+rand.workspace = true
+serde.workspace = true
+serde_json.workspace = true

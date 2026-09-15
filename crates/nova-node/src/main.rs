@@ -41,7 +41,7 @@ async fn main() -> anyhow::Result<()> {
         .init();
     let mut ledger = LedgerState::default();
     let pk = [1u8; 32];
-    let id = AccountId::from_initial_key(&pk);
+    let id = AccountId::from_seed(&[0xA1; 32]);
     ledger.insert_genesis_account(AccountState {
         id,
         balance: 0,
@@ -51,7 +51,7 @@ async fn main() -> anyhow::Result<()> {
             public_key: pk,
             version: 1,
         },
-    });
+    })?;
     let root = ledger.root();
     let genesis = Block {
         header: BlockHeader {
@@ -80,7 +80,7 @@ async fn main() -> anyhow::Result<()> {
         .layer(TraceLayer::new_for_http())
         .with_state(app);
 
-    let addr = "127.0.0.1:7711";
+    let addr = "0.0.0.0:7711";
     tracing::info!(%addr, "NOVA node RPC online");
     let listener = tokio::net::TcpListener::bind(addr).await?;
     axum::serve(listener, router)
