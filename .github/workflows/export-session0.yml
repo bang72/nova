@@ -1,0 +1,20 @@
+name: Export Session 0
+on:
+  push:
+    branches: [nova-v1-mature]
+permissions:
+  contents: read
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build source archive
+        run: |
+          rm -f .github/workflows/export-session0.yml
+          zip -r NOVA_Session_0_Mature_Foundation.zip . -x '.git/*' 'target/*' '*.key' '.env'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: NOVA_Session_0_Mature_Foundation
+          path: NOVA_Session_0_Mature_Foundation.zip
+          if-no-files-found: error
